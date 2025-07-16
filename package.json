@@ -1,0 +1,18 @@
+{
+  "name": "i18n-swiss-knife",
+  "version": "1.0.0",
+  "description": "Electron app for working with translations",
+  "main": "index.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "^37.2.2"
+  },
+  "dependencies": {
+    "glob": "^11.0.3"
+  }
+}

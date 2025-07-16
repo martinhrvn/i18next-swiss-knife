@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'">
+    <title>i18n Swiss Knife</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-layout">
+        <aside id="sidebar" class="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-title">
+                    <h3 id="sidebarTitle">i18n Swiss Knife</h3>
+                    <span id="masterLang" class="master-lang" style="display: none;"></span>
+                </div>
+                <button id="configBtn" class="config-btn" title="Configure Project">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M12 1v6m0 6v6m11-7h-6m-6 0H1m18.36-3.64l-4.24 4.24m-5.66-5.66L4.22 6.22m14.14 14.14l-4.24-4.24m-5.66-5.66L4.22 17.78"></path>
+                    </svg>
+                </button>
+            </div>
+            <div id="sidebarControls" class="sidebar-controls" style="display: none;">
+                <div class="search-section">
+                    <div class="search-input-wrapper">
+                        <input type="text" id="searchInput" class="search-input" placeholder="Search keys...">
+                        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <path d="M21 21l-4.35-4.35"></path>
+                        </svg>
+                    </div>
+                </div>
+                
+                <div class="filter-section">
+                    <div class="filter-buttons">
+                        <button id="filterAll" class="filter-btn active" data-filter="all">All</button>
+                        <button id="filterMissing" class="filter-btn" data-filter="missing">Missing</button>
+                        <button id="filterIncomplete" class="filter-btn" data-filter="incomplete">Incomplete</button>
+                        <button id="filterComplete" class="filter-btn" data-filter="complete">Complete</button>
+                    </div>
+                    <div class="filter-stats">
+                        <span id="filterStats" class="filter-stats-text">0 keys</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="keyTree" class="key-tree"></div>
+            <div id="noProjectMessage" class="no-project-message">
+                <p>No project configured</p>
+                <button id="startConfigBtn" class="start-config-btn">Configure Project</button>
+            </div>
+        </aside>
+        
+        <main class="main-content">
+            <div class="container">
+                <div id="keyDetails" class="key-details" style="display: none;">
+                    <div class="key-details-header">
+                        <h2>Translation Editor</h2>
+                        <div class="key-path">
+                            <span class="path-prefix">Path:</span>
+                            <span id="selectedKeyPath" class="selected-key-path">None</span>
+                        </div>
+                    </div>
+                    <div id="translationEditor" class="translation-editor"></div>
+                </div>
+                
+                <div id="welcomeMessage" class="welcome-message">
+                    <h1>Welcome to i18n Swiss Knife</h1>
+                    <p>Configure your project to get started with translation management</p>
+                    <button id="welcomeConfigBtn" class="welcome-config-btn">Configure Project</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Configuration Modal -->
+    <div id="configModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Project Configuration</h2>
+                <button id="closeModalBtn" class="close-btn">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="modal-body">
+                <div class="config-step">
+                    <h3>1. Select Folder</h3>
+                    <p>Choose the folder containing your translation files</p>
+                    <div class="folder-selection">
+                        <button id="selectFolderBtn" class="select-btn">
+                            <svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                            </svg>
+                            Select Folder
+                        </button>
+                        
+                        <div id="selectedPath" class="selected-path">
+                            <span class="path-label">Selected folder:</span>
+                            <span id="pathDisplay" class="path-display">No folder selected</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="patternSection" class="config-step" style="display: none;">
+                    <h3>2. File Pattern</h3>
+                    <p class="pattern-hint">Use {lang} as a placeholder for language codes (e.g., {lang}/common.json)</p>
+                    <div class="pattern-input-group">
+                        <input type="text" id="patternInput" class="pattern-input" placeholder="{lang}/common.json" value="{lang}/common.json">
+                        <button id="loadFilesBtn" class="load-btn">Load Files</button>
+                    </div>
+                </div>
+
+                <div id="translationFiles" class="config-step" style="display: none;">
+                    <h3>3. Translation Files</h3>
+                    <p class="files-hint">Select the files you want to work with and choose a master file for reference</p>
+                    <div class="files-controls">
+                        <div class="selection-controls">
+                            <button id="selectAllBtn" class="control-btn">Select All</button>
+                            <button id="selectNoneBtn" class="control-btn">Select None</button>
+                        </div>
+                        <div class="selection-info">
+                            <span id="selectionCount">0 files selected</span>
+                        </div>
+                    </div>
+                    <div id="filesList" class="files-list"></div>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button id="applyConfigBtn" class="apply-btn" style="display: none;">Apply Configuration</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="renderer.js"></script>
+</body>
+</html>
