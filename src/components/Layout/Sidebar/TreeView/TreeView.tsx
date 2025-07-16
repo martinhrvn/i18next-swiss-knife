@@ -6,12 +6,13 @@ import TreeNode from './TreeNode';
 const TreeView: React.FC = () => {
   const { state } = useAppContext();
 
-  const filteredNodes = useMemo(() => {
+  const rootNodes = useMemo(() => {
     if (!state.currentFile) return [];
 
     const { keySearch, valueSearch, showMissing, showCompleted } = state.searchFilter;
     
-    return state.currentFile?.nodes?.filter(node => {
+    // First, filter all nodes based on search criteria
+    const allFilteredNodes = state.currentFile?.nodes?.filter(node => {
       const matchesKeySearch = !keySearch || 
         node.key.toLowerCase().includes(keySearch.toLowerCase());
       
@@ -27,6 +28,12 @@ const TreeView: React.FC = () => {
       
       return matchesKeySearch && matchesValueSearch && matchesFilter;
     }) ?? [];
+
+    // Then, return only root-level nodes (those without a parent or parent is not in filtered set)
+    return allFilteredNodes.filter(node => {
+      // Root nodes are those that don't have a parent or whose parent is not in the current file
+      return !node.parent || !allFilteredNodes.some(n => n.id === node.parent);
+    });
   }, [state.currentFile, state.searchFilter]);
 
   if (!state.currentFile) {
@@ -39,7 +46,7 @@ const TreeView: React.FC = () => {
 
   return (
     <div className="tree-view">
-      {filteredNodes.map(node => (
+      {rootNodes.map(node => (
         <TreeNode key={node.id} node={node} />
       ))}
     </div>

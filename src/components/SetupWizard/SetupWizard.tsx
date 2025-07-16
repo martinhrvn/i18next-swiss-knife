@@ -6,6 +6,8 @@ interface FoundFile {
   lang: string;
   path: string;
   relativePath: string;
+  content?: Record<string, any>;
+  keys?: number;
   error?: string;
 }
 
@@ -50,6 +52,23 @@ const SetupWizard: React.FC = () => {
     }
   };
 
+  const convertToTranslationFile = (foundFile: FoundFile) => {
+    if (!foundFile.content) {
+      throw new Error('File content is missing');
+    }
+    
+    const nodes = flattenTranslationData(foundFile.content);
+    
+    return {
+      path: foundFile.path,
+      lang: foundFile.lang,
+      data: foundFile.content,
+      nodes: nodes,
+      relativePath: foundFile.relativePath,
+      error: foundFile.error
+    };
+  };
+
   const handleLoadSelectedFiles = async () => {
     const filesToLoad = foundFiles.filter(file => selectedFiles.has(file.path));
     
@@ -58,9 +77,18 @@ const SetupWizard: React.FC = () => {
     dispatch({ type: 'SET_LOADING', payload: true });
     
     try {
-      dispatch({ type: 'SET_TRANSLATION_FILES', payload: filesToLoad });
-      if (filesToLoad[0]) {
-        dispatch({ type: 'SET_CURRENT_FILE', payload: filesToLoad[0] });
+      // Convert FoundFile objects to TranslationFile format
+      const translationFiles = filesToLoad
+        .filter(file => !file.error && file.content)
+        .map(convertToTranslationFile);
+
+      dispatch({ type: 'SET_TRANSLATION_FILES', payload: translationFiles });
+      
+      // Set the first file as current, but the MasterFileSelector will handle auto-selection
+      if (translationFiles.length > 0) {
+        const enFile = translationFiles.find(file => file.lang === 'en' || file.lang === 'english');
+        const masterFile = enFile || translationFiles[0];
+        dispatch({ type: 'SET_CURRENT_FILE', payload: masterFile });
       }
     } catch (error) {
       console.error('Error loading files:', error);
@@ -82,6 +110,34 @@ const SetupWizard: React.FC = () => {
   const canProceedToStep2 = folderPath.length > 0;
   const canScanFiles = folderPath.length > 0 && filePattern.length > 0;
   const canLoadFiles = selectedFiles.size > 0;
+
+  // Helper function to flatten translation data into nodes
+  const flattenTranslationData = (data: Record<string, any>, prefix = '') => {
+    const nodes: any[] = [];
+    
+    Object.entries(data).forEach(([key, value]) => {
+      const fullKey = prefix ? `${prefix}.${key}` : key;
+      
+      if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+        nodes.push({
+          id: fullKey,
+          key: fullKey,
+          value: '',
+          children: flattenTranslationData(value, fullKey),
+          isExpanded: false,
+        });
+      } else {
+        nodes.push({
+          id: fullKey,
+          key: fullKey,
+          value: String(value || ''),
+          parent: prefix || undefined,
+        });
+      }
+    });
+    
+    return nodes;
+  };
 
   return (
     <div className="setup-wizard">
@@ -191,6 +247,9 @@ const SetupWizard: React.FC = () => {
                         <div className="file-name">
                           <strong>{file.lang}</strong> - {file.relativePath}
                         </div>
+                        {!file.error && file.keys && (
+                          <div className="file-keys">{file.keys} keys found</div>
+                        )}
                         {file.error && (
                           <div className="file-error">{file.error}</div>
                         )}

@@ -25,6 +25,9 @@ const TreeNode: React.FC<TreeNodeProps> = ({ node, level = 0 }) => {
   };
 
   const paddingLeft = level * 16 + 8;
+  
+  // Extract just the current level name from the full key path
+  const displayName = node.key.split('.').pop() || node.key;
 
   return (
     <>
@@ -42,12 +45,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({ node, level = 0 }) => {
               {isExpanded ? '▼' : '▶'}
             </span>
           )}
-          <span className="tree-node-key">{node.key}</span>
-          {!hasChildren && (
-            <span className="tree-node-value">
-              {node.value ? `= ${node.value}` : '= (empty)'}
-            </span>
-          )}
+          <span className="tree-node-key">{displayName}</span>
         </div>
       </div>
       

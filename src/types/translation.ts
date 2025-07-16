@@ -11,6 +11,8 @@ export interface TranslationFile {
   path: string;
   data: Record<string, any>;
   nodes: TranslationNode[];
+  lang: string;
+  error?: string;
 }
 
 export interface SearchFilter {

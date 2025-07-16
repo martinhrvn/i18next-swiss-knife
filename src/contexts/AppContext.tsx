@@ -80,16 +80,24 @@ function appReducer(state: AppState, action: AppAction): AppState {
           : state.currentFile,
       };
     case 'TOGGLE_NODE_EXPANSION':
+      const toggleExpansionInNodes = (nodes: TranslationNode[]): TranslationNode[] => {
+        return nodes.map(node => {
+          if (node.id === action.payload) {
+            return { ...node, isExpanded: !node.isExpanded };
+          }
+          if (node.children) {
+            return { ...node, children: toggleExpansionInNodes(node.children) };
+          }
+          return node;
+        });
+      };
+
       return {
         ...state,
         currentFile: state.currentFile && state.currentFile.nodes
           ? {
               ...state.currentFile,
-              nodes: state.currentFile.nodes.map(node =>
-                node.id === action.payload
-                  ? { ...node, isExpanded: !node.isExpanded }
-                  : node
-              ),
+              nodes: toggleExpansionInNodes(state.currentFile.nodes),
             }
           : state.currentFile,
       };

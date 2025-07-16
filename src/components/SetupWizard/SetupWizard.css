@@ -288,6 +288,12 @@
   font-style: italic;
 }
 
+.file-keys {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
 .selection-summary {
   text-align: center;
   font-size: 0.875rem;
