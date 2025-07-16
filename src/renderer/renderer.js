@@ -10,7 +10,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const noProjectMessage = document.getElementById('noProjectMessage');
     const welcomeMessage = document.getElementById('welcomeMessage');
     const sidebarControls = document.getElementById('sidebarControls');
-    const searchInput = document.getElementById('searchInput');
+    const searchKeyInput = document.getElementById('searchKeyInput');
+    const searchValueInput = document.getElementById('searchValueInput');
     const filterStats = document.getElementById('filterStats');
     
     // Modal Elements
@@ -21,6 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const welcomeConfigBtn = document.getElementById('welcomeConfigBtn');
     const closeModalBtn = document.getElementById('closeModalBtn');
     const applyConfigBtn = document.getElementById('applyConfigBtn');
+    const clearSettingsBtn = document.getElementById('clearSettingsBtn');
     
     // Configuration Elements
     const selectFolderBtn = document.getElementById('selectFolderBtn');
@@ -67,14 +69,156 @@ document.addEventListener('DOMContentLoaded', () => {
     let translationFilesData = [];
     let selectedFiles = new Set(); // Track selected files
     let isProjectConfigured = false;
-    let currentSearchTerm = '';
+    let currentKeySearchTerm = '';
+    let currentValueSearchTerm = '';
     let currentFilter = 'all';
     let allKeys = []; // Cache of all keys for filtering
     let contextMenuTarget = null; // Track which node the context menu was opened for
     let pendingKeyAddition = null; // Track pending key addition for conflict resolution
 
-    // Initialize UI
+    // Settings persistence functions
+    function saveSettings() {
+        const settings = {
+            selectedFolderPath: selectedFolderPath,
+            filePattern: document.getElementById('patternInput')?.value || '',
+            selectedLanguages: Array.from(selectedFiles),
+            masterLanguage: masterFile?.lang || null,
+            timestamp: new Date().toISOString()
+        };
+        
+        try {
+            localStorage.setItem('i18n-swiss-knife-settings', JSON.stringify(settings));
+            console.log('Settings saved successfully');
+        } catch (error) {
+            console.error('Error saving settings:', error);
+        }
+    }
+
+    function loadSettings() {
+        try {
+            const saved = localStorage.getItem('i18n-swiss-knife-settings');
+            if (saved) {
+                const settings = JSON.parse(saved);
+                console.log('Loading saved settings:', settings);
+                
+                // Restore folder path
+                if (settings.selectedFolderPath) {
+                    selectedFolderPath = settings.selectedFolderPath;
+                }
+                
+                // Restore file pattern
+                if (settings.filePattern) {
+                    const patternInput = document.getElementById('patternInput');
+                    if (patternInput) {
+                        patternInput.value = settings.filePattern;
+                    }
+                }
+                
+                // Restore selected languages
+                if (settings.selectedLanguages && Array.isArray(settings.selectedLanguages)) {
+                    selectedFiles = new Set(settings.selectedLanguages);
+                }
+                
+                // Master language will be restored when files are loaded
+                return settings;
+            }
+        } catch (error) {
+            console.error('Error loading settings:', error);
+        }
+        return null;
+    }
+
+    function clearSettings() {
+        try {
+            localStorage.removeItem('i18n-swiss-knife-settings');
+            console.log('Settings cleared');
+        } catch (error) {
+            console.error('Error clearing settings:', error);
+        }
+    }
+
+    // Initialize UI and load saved settings
     updateUIState();
+    
+    // Try to load saved settings and auto-configure project
+    async function tryAutoLoadProject() {
+        const savedSettings = loadSettings();
+        if (savedSettings && savedSettings.selectedFolderPath) {
+            console.log('Attempting to auto-load project with saved settings');
+            
+            // Try to load the project automatically
+            const patternInput = document.getElementById('patternInput');
+            if (patternInput && savedSettings.filePattern) {
+                try {
+                    const files = await window.electronAPI.loadTranslationFiles(
+                        savedSettings.selectedFolderPath, 
+                        savedSettings.filePattern
+                    );
+                    
+                    if (files && files.length > 0) {
+                        translationFilesData = files;
+                        
+                        // Restore master file if it exists
+                        if (savedSettings.masterLanguage) {
+                            masterFile = files.find(f => f.lang === savedSettings.masterLanguage);
+                        }
+                        
+                        // Filter to only selected files and ensure they exist
+                        const availableLanguages = new Set(files.map(f => f.lang));
+                        const validSelectedFiles = new Set();
+                        
+                        for (const lang of selectedFiles) {
+                            if (availableLanguages.has(lang)) {
+                                validSelectedFiles.add(lang);
+                            }
+                        }
+                        
+                        if (validSelectedFiles.size > 0) {
+                            selectedFiles = validSelectedFiles;
+                            
+                            // Apply configuration if we have a master file
+                            if (masterFile && selectedFiles.has(masterFile.lang)) {
+                                applyConfiguration();
+                                console.log('Project auto-loaded successfully');
+                                
+                                // Show subtle notification
+                                const notification = document.createElement('div');
+                                notification.style.cssText = `
+                                    position: fixed;
+                                    top: 20px;
+                                    right: 20px;
+                                    background: #27ae60;
+                                    color: white;
+                                    padding: 10px 20px;
+                                    border-radius: 4px;
+                                    z-index: 1000;
+                                    opacity: 0;
+                                    transition: opacity 0.3s ease;
+                                    font-size: 14px;
+                                `;
+                                notification.textContent = 'Project loaded from saved settings';
+                                document.body.appendChild(notification);
+                                
+                                setTimeout(() => notification.style.opacity = '1', 100);
+                                setTimeout(() => {
+                                    notification.style.opacity = '0';
+                                    setTimeout(() => notification.remove(), 300);
+                                }, 3000);
+                                
+                                return;
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.log('Auto-load failed:', error);
+                }
+            }
+        }
+        console.log('No valid saved settings found or auto-load failed');
+    }
+    
+    // Try auto-loading after a brief delay to ensure DOM is ready
+    setTimeout(tryAutoLoadProject, 100);
 
     // Modal Event Listeners
     configBtn.addEventListener('click', openConfigModal);
@@ -83,6 +227,12 @@ document.addEventListener('DOMContentLoaded', () => {
     welcomeConfigBtn.addEventListener('click', openConfigModal);
     closeModalBtn.addEventListener('click', closeConfigModal);
     applyConfigBtn.addEventListener('click', applyConfiguration);
+    clearSettingsBtn.addEventListener('click', () => {
+        if (confirm('Are you sure you want to clear all saved settings? This cannot be undone.')) {
+            clearSettings();
+            alert('Settings cleared successfully!');
+        }
+    });
 
     // Configuration Event Listeners
     selectFolderBtn.addEventListener('click', selectFolder);
@@ -96,8 +246,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Search and Filter Event Listeners
-    searchInput.addEventListener('input', (e) => {
-        currentSearchTerm = e.target.value.toLowerCase();
+    searchKeyInput.addEventListener('input', (e) => {
+        currentKeySearchTerm = e.target.value.toLowerCase();
+        applyFilters();
+    });
+
+    searchValueInput.addEventListener('input', (e) => {
+        currentValueSearchTerm = e.target.value.toLowerCase();
         applyFilters();
     });
 
@@ -431,6 +586,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // Render the key tree
         renderKeyTree(masterFile.content);
         
+        // Save settings after successful configuration
+        saveSettings();
+        
         // Close modal
         closeConfigModal();
     }
@@ -441,7 +599,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // Cache all keys with their translation status
         allKeys = getAllKeysWithStatus(data);
         
-        const treeHTML = createTreeNode('', data, true);
+        // Instead of creating a single root node, create nodes for each top-level key
+        let treeHTML = '';
+        Object.keys(data).forEach(key => {
+            treeHTML += createTreeNode(key, data[key], false, '');
+        });
         keyTree.innerHTML = treeHTML;
         
         // Add event listeners for tree toggles
@@ -992,7 +1154,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 node.classList.remove('hidden');
                 
                 // Highlight search matches
-                if (currentSearchTerm && keyPath && keyPath.toLowerCase().includes(currentSearchTerm)) {
+                let shouldHighlight = false;
+                
+                if (currentKeySearchTerm && keyPath && keyPath.toLowerCase().includes(currentKeySearchTerm)) {
+                    shouldHighlight = true;
+                }
+                
+                if (currentValueSearchTerm && keyPath) {
+                    const translations = getTranslationsForKey(keyPath);
+                    if (translations.some(t => t.value && t.value.toLowerCase().includes(currentValueSearchTerm))) {
+                        shouldHighlight = true;
+                    }
+                }
+                
+                if (shouldHighlight) {
                     node.classList.add('highlighted');
                 } else {
                     node.classList.remove('highlighted');
@@ -1014,9 +1189,17 @@ document.addEventListener('DOMContentLoaded', () => {
         // Skip empty paths
         if (!keyPath) return false;
         
-        // Search filter
-        if (currentSearchTerm && !keyPath.toLowerCase().includes(currentSearchTerm)) {
+        // Key search filter
+        if (currentKeySearchTerm && !keyPath.toLowerCase().includes(currentKeySearchTerm)) {
             return false;
+        }
+        
+        // Value search filter
+        if (currentValueSearchTerm) {
+            const translations = getTranslationsForKey(keyPath);
+            return translations.some(t =>
+                t.value && t.value.toLowerCase().includes(currentValueSearchTerm.toLowerCase())
+            )
         }
         
         // Translation status filter
@@ -1076,7 +1259,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 filteredCount = visibleCount;
         }
         
-        const text = currentSearchTerm ? 
+        const text = (currentKeySearchTerm || currentValueSearchTerm) ? 
             `${filteredCount} of ${totalCount} keys` : 
             `${totalCount} keys`;
         

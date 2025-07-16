@@ -34,7 +34,14 @@
             <div id="sidebarControls" class="sidebar-controls" style="display: none;">
                 <div class="search-section">
                     <div class="search-input-wrapper">
-                        <input type="text" id="searchInput" class="search-input" placeholder="Search keys...">
+                        <input type="text" id="searchKeyInput" class="search-input" placeholder="Search keys...">
+                        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <path d="M21 21l-4.35-4.35"></path>
+                        </svg>
+                    </div>
+                    <div class="search-input-wrapper">
+                        <input type="text" id="searchValueInput" class="search-input" placeholder="Search values...">
                         <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <circle cx="11" cy="11" r="8"></circle>
                             <path d="M21 21l-4.35-4.35"></path>
@@ -155,6 +162,7 @@
             </div>
             
             <div class="modal-footer">
+                <button id="clearSettingsBtn" class="clear-settings-btn" title="Clear saved settings">Clear Saved Settings</button>
                 <button id="applyConfigBtn" class="apply-btn" style="display: none;">Apply Configuration</button>
             </div>
         </div>

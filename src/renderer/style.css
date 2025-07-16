@@ -145,6 +145,12 @@ body {
     pointer-events: none;
 }
 
+.search-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
 .filter-section {
     display: flex;
     flex-direction: column;
@@ -267,9 +273,8 @@ body {
 }
 
 .container {
-    max-width: 800px;
-    margin: 0 auto;
     padding: 40px 20px;
+    width: 100%;
 }
 
 h1 {
@@ -1220,6 +1225,28 @@ h1 {
 
 .apply-btn:hover {
     background: #229954;
+}
+
+.clear-settings-btn {
+    background: #e74c3c;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    font-size: 0.9rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.3s ease;
+    margin-right: 10px;
+}
+
+.clear-settings-btn:hover {
+    background: #c0392b;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
 /* Context Menu Styles */
