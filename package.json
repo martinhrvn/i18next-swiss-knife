@@ -4,15 +4,28 @@
   "description": "Electron app for working with translations",
   "main": "index.js",
   "scripts": {
-    "start": "electron .",
+    "start": "NODE_ENV=production electron .",
+    "dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && NODE_ENV=development electron .\"",
+    "build": "vite build",
+    "electron": "electron .",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "electron": "^37.2.2"
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.2.0",
+    "electron": "^37.2.2",
+    "vite": "^6.0.5",
+    "wait-on": "^8.0.3"
   },
   "dependencies": {
-    "glob": "^11.0.3"
+    "@types/node": "^24.0.14",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "glob": "^11.0.3",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "typescript": "^5.8.3"
   }
 }

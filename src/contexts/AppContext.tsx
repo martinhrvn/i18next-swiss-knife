@@ -19,7 +19,8 @@ type AppAction =
   | { type: 'UPDATE_SETTINGS'; payload: Partial<AppSettings> }
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'UPDATE_NODE_VALUE'; payload: { nodeId: string; value: string } }
-  | { type: 'TOGGLE_NODE_EXPANSION'; payload: string };
+  | { type: 'TOGGLE_NODE_EXPANSION'; payload: string }
+  | { type: 'CLEAR_ALL_FILES' };
 
 const initialState: AppState = {
   translationFiles: [],
@@ -91,6 +92,19 @@ function appReducer(state: AppState, action: AppAction): AppState {
               ),
             }
           : state.currentFile,
+      };
+    case 'CLEAR_ALL_FILES':
+      return {
+        ...state,
+        translationFiles: [],
+        currentFile: null,
+        selectedNode: null,
+        searchFilter: {
+          keySearch: '',
+          valueSearch: '',
+          showMissing: true,
+          showCompleted: true,
+        },
       };
     default:
       return state;
