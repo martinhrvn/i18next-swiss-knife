@@ -108,11 +108,14 @@ const TranslationEditor: React.FC = () => {
 
         const nodeInFile = findNodeInFile(file.nodes, child.key);
         const value = nodeInFile?.value || '';
+        // Only show validation errors for leaf nodes (nodes without children)
+        const isLeaf = !nodeInFile?.children || nodeInFile.children.length === 0;
+        const hasError = isLeaf && (!value || value.trim() === '');
         
         return {
           lang: file.lang,
           value: value,
-          hasError: !value || value.trim() === '',
+          hasError: hasError,
           file: file
         };
       });
@@ -200,10 +203,21 @@ const TranslationEditor: React.FC = () => {
   };
 
   const hasChanges = useMemo(() => {
-    return languageValues.some(langValue => 
+    // Check for leaf node changes
+    const leafChanges = languageValues.some(langValue => 
       editedValues[langValue.lang] !== langValue.value
     );
-  }, [editedValues, languageValues]);
+    
+    // Check for children card changes
+    const childChanges = childrenWithValues.some(item =>
+      item.languageValues.some(langValue => {
+        const tableKey = `${item.child.key}:${langValue.lang}`;
+        return editedValues[tableKey] !== langValue.value;
+      })
+    );
+    
+    return leafChanges || childChanges;
+  }, [editedValues, languageValues, childrenWithValues]);
 
   if (!state.selectedNode) {
     return null;
@@ -226,14 +240,13 @@ const TranslationEditor: React.FC = () => {
             </React.Fragment>
           ))}
         </div>
-        {hasChanges && (
-          <button
-            onClick={handleSave}
-            className="save-button-header"
-          >
-            Save Changes (Ctrl+S)
-          </button>
-        )}
+        <button
+          onClick={handleSave}
+          disabled={!hasChanges}
+          className="save-button-header"
+        >
+          Save Changes (Ctrl+S)
+        </button>
       </div>
 
       {/* Content Area */}
@@ -266,8 +279,8 @@ const TranslationEditor: React.FC = () => {
 
         </div>
       ) : (
-        /* Node with Children - Show Editable Table */
-        <div className="children-table-container">
+        /* Node with Children - Show Cards */
+        <div className="children-cards-container">
           <div className="children-header">
             <h4>Children ({state.selectedNode.children?.length || 0})</h4>
             {(state.selectedNode.children?.length || 0) > 50 && (
@@ -275,47 +288,45 @@ const TranslationEditor: React.FC = () => {
             )}
           </div>
           
-          <div className="children-table">
-            <div className="table-header">
-              <div className="table-cell key-column">Key</div>
-              {state.translationFiles.map(file => (
-                <div key={file.lang} className="table-cell language-column">
-                  {file.lang}
-                  {file.lang === state.currentFile?.lang && (
-                    <span className="master-indicator">MASTER</span>
-                  )}
+          <div className="children-cards">
+            {childrenWithValues.map((item) => (
+              <div key={item.child.id} className="child-card">
+                <div className="card-header">
+                  <button
+                    className="key-button"
+                    onClick={() => handleChildClick(item.child)}
+                    title="Click to navigate to this key"
+                  >
+                    {item.displayName}
+                    {item.child.children && <span className="child-indicator">📁</span>}
+                  </button>
                 </div>
-              ))}
-            </div>
-            
-            <div className="table-body">
-              {childrenWithValues.map((item) => (
-                <div key={item.child.id} className="table-row">
-                  <div className="table-cell key-column">
-                    <button
-                      className="key-button"
-                      onClick={() => handleChildClick(item.child)}
-                      title="Click to navigate to this key"
-                    >
-                      {item.displayName}
-                      {item.child.children && <span className="child-indicator">📁</span>}
-                    </button>
-                  </div>
+                
+                <div className="card-languages">
                   {item.languageValues.map((langValue) => (
-                    <div key={langValue.lang} className="table-cell language-column">
+                    <div key={langValue.lang} className="card-language-editor">
+                      <div className="card-language-header">
+                        <span className="language-name">{langValue.lang}</span>
+                        {langValue.hasError && (
+                          <span className="validation-error">Missing translation</span>
+                        )}
+                        {langValue.lang === state.currentFile?.lang && (
+                          <span className="current-master">Master</span>
+                        )}
+                      </div>
                       <input
                         type="text"
                         value={editedValues[`${item.child.key}:${langValue.lang}`] || langValue.value}
                         onChange={(e) => updateEditedValue(`${item.child.key}:${langValue.lang}`, e.target.value)}
                         onKeyDown={handleKeyDown}
                         placeholder={`Enter ${langValue.lang} translation...`}
-                        className={`table-input ${langValue.hasError ? 'has-error' : ''}`}
+                        className={`value-input ${langValue.hasError ? 'has-error' : ''}`}
                       />
                     </div>
                   ))}
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
           </div>
         </div>
       )}

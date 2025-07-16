@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useReducer, ReactNode } from 'react';
+import React, { createContext, useContext, useReducer, ReactNode, useEffect } from 'react';
 import { TranslationFile, TranslationNode, SearchFilter } from '../types/translation';
 import { AppSettings } from '../types/settings';
+import { saveToLocalStorage, loadFromLocalStorage, clearLocalStorage, StoredState } from '../utils/localStorage';
 
 interface AppState {
   translationFiles: TranslationFile[];
@@ -9,6 +10,7 @@ interface AppState {
   searchFilter: SearchFilter;
   settings: AppSettings;
   isLoading: boolean;
+  isRestoredFromStorage: boolean;
 }
 
 type AppAction =
@@ -20,7 +22,8 @@ type AppAction =
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'UPDATE_NODE_VALUE'; payload: { nodeId: string; value: string } }
   | { type: 'TOGGLE_NODE_EXPANSION'; payload: string }
-  | { type: 'CLEAR_ALL_FILES' };
+  | { type: 'CLEAR_ALL_FILES' }
+  | { type: 'LOAD_STORED_STATE'; payload: StoredState };
 
 const initialState: AppState = {
   translationFiles: [],
@@ -43,6 +46,7 @@ const initialState: AppState = {
     },
   },
   isLoading: false,
+  isRestoredFromStorage: false,
 };
 
 function appReducer(state: AppState, action: AppAction): AppState {
@@ -102,6 +106,8 @@ function appReducer(state: AppState, action: AppAction): AppState {
           : state.currentFile,
       };
     case 'CLEAR_ALL_FILES':
+      // Clear localStorage when clearing files
+      clearLocalStorage();
       return {
         ...state,
         translationFiles: [],
@@ -113,6 +119,37 @@ function appReducer(state: AppState, action: AppAction): AppState {
           showMissing: true,
           showCompleted: true,
         },
+      };
+    case 'LOAD_STORED_STATE':
+      const storedState = action.payload;
+      // Find the current file by language
+      const currentFile = storedState.translationFiles.find(
+        file => file.lang === storedState.currentFileLanguage
+      ) || null;
+      
+      // Find the selected node by key
+      let selectedNode: TranslationNode | null = null;
+      if (storedState.selectedNodeKey && currentFile) {
+        const findNodeByKey = (nodes: TranslationNode[], targetKey: string): TranslationNode | null => {
+          for (const node of nodes) {
+            if (node.key === targetKey) return node;
+            if (node.children) {
+              const found = findNodeByKey(node.children, targetKey);
+              if (found) return found;
+            }
+          }
+          return null;
+        };
+        selectedNode = findNodeByKey(currentFile.nodes, storedState.selectedNodeKey);
+      }
+      
+      return {
+        ...state,
+        translationFiles: storedState.translationFiles,
+        currentFile,
+        selectedNode,
+        settings: { ...state.settings, ...storedState.settings },
+        isRestoredFromStorage: true
       };
     default:
       return state;
@@ -126,6 +163,36 @@ const AppContext = createContext<{
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(appReducer, initialState);
+
+  // Load stored state on mount
+  useEffect(() => {
+    const storedState = loadFromLocalStorage();
+    if (storedState) {
+      console.log('Loading stored state from localStorage');
+      dispatch({ type: 'LOAD_STORED_STATE', payload: storedState });
+    }
+  }, []);
+
+  // Save state to localStorage when relevant state changes
+  useEffect(() => {
+    // Only save if we have translation files loaded
+    if (state.translationFiles.length > 0) {
+      const stateToSave: StoredState = {
+        translationFiles: state.translationFiles,
+        currentFileLanguage: state.currentFile?.lang || null,
+        selectedNodeKey: state.selectedNode?.key || null,
+        settings: state.settings,
+        lastSavedAt: Date.now()
+      };
+      
+      saveToLocalStorage(stateToSave);
+    }
+  }, [
+    state.translationFiles,
+    state.currentFile?.lang,
+    state.selectedNode?.key,
+    state.settings
+  ]);
 
   return (
     <AppContext.Provider value={{ state, dispatch }}>
