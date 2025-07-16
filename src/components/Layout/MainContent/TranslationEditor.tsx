@@ -48,52 +48,29 @@ const TranslationEditor: React.FC = () => {
   // Check if selected node is a leaf (has no children)
   const isLeafNode = !state.selectedNode?.children || state.selectedNode.children.length === 0;
 
-  // Initialize edited values when selected node changes
-  useEffect(() => {
-    if (state.selectedNode && languageValues.length > 0) {
-      const initialValues: Record<string, string> = {};
-      
-      // For leaf nodes
-      languageValues.forEach(langValue => {
-        initialValues[langValue.lang] = langValue.value;
-      });
-      
-      // For nodes with children - initialize table values
-      if (!isLeafNode && state.selectedNode.children) {
-        const children = state.selectedNode.children.slice(0, 50);
-        children.forEach(child => {
-          state.translationFiles.forEach(file => {
-            const findNodeInFile = (nodes: TranslationNode[], targetKey: string): TranslationNode | null => {
-              for (const node of nodes) {
-                if (node.key === targetKey) return node;
-                if (node.children) {
-                  const found = findNodeInFile(node.children, targetKey);
-                  if (found) return found;
-                }
-              }
-              return null;
-            };
-
-            const nodeInFile = findNodeInFile(file.nodes, child.key);
-            const value = nodeInFile?.value || '';
-            const tableKey = `${child.key}:${file.lang}`;
-            initialValues[tableKey] = value;
-          });
-        });
+  // Get all leaf descendants of selected node with their values across all languages
+  const leafDescendants = useMemo(() => {
+    if (!state.selectedNode || !state.translationFiles) return [];
+    
+    // Function to collect all leaf nodes recursively
+    const collectLeafNodes = (node: TranslationNode): TranslationNode[] => {
+      if (!node.children || node.children.length === 0) {
+        // This is a leaf node
+        return [node];
       }
       
-      setEditedValues(initialValues);
-    }
-  }, [state.selectedNode, languageValues, isLeafNode, state.translationFiles]);
-
-  // Get children of selected node (first 50) with their values across all languages
-  const childrenWithValues = useMemo(() => {
-    if (!state.selectedNode || !state.selectedNode.children || !state.translationFiles) return [];
+      // This is a parent node, collect leaves from all children
+      const leaves: TranslationNode[] = [];
+      for (const child of node.children) {
+        leaves.push(...collectLeafNodes(child));
+      }
+      return leaves;
+    };
     
-    const children = state.selectedNode.children.slice(0, 50);
+    const leafNodes = collectLeafNodes(state.selectedNode);
     
-    return children.map(child => {
-      // Get values for this child across all languages
+    return leafNodes.map(leafNode => {
+      // Get values for this leaf across all languages
       const languageValues = state.translationFiles.map(file => {
         const findNodeInFile = (nodes: TranslationNode[], targetKey: string): TranslationNode | null => {
           for (const node of nodes) {
@@ -106,11 +83,9 @@ const TranslationEditor: React.FC = () => {
           return null;
         };
 
-        const nodeInFile = findNodeInFile(file.nodes, child.key);
+        const nodeInFile = findNodeInFile(file.nodes, leafNode.key);
         const value = nodeInFile?.value || '';
-        // Only show validation errors for leaf nodes (nodes without children)
-        const isLeaf = !nodeInFile?.children || nodeInFile.children.length === 0;
-        const hasError = isLeaf && (!value || value.trim() === '');
+        const hasError = !value || value.trim() === '';
         
         return {
           lang: file.lang,
@@ -121,12 +96,37 @@ const TranslationEditor: React.FC = () => {
       });
 
       return {
-        child,
+        leaf: leafNode,
         languageValues,
-        displayName: child.key.split('.').pop() || child.key
+        displayName: leafNode.key.split('.').pop() || leafNode.key,
+        fullKey: leafNode.key
       };
     });
   }, [state.selectedNode, state.translationFiles]);
+
+  // Initialize edited values when selected node changes
+  useEffect(() => {
+    if (state.selectedNode && languageValues.length > 0) {
+      const initialValues: Record<string, string> = {};
+      
+      // For leaf nodes
+      languageValues.forEach(langValue => {
+        initialValues[langValue.lang] = langValue.value;
+      });
+      
+      // For nodes with children - initialize values for all leaf descendants
+      if (!isLeafNode) {
+        leafDescendants.forEach(item => {
+          item.languageValues.forEach(langValue => {
+            const tableKey = `${item.leaf.key}:${langValue.lang}`;
+            initialValues[tableKey] = langValue.value;
+          });
+        });
+      }
+      
+      setEditedValues(initialValues);
+    }
+  }, [state.selectedNode, languageValues, isLeafNode, state.translationFiles, leafDescendants]);
 
   // Create breadcrumb segments from the key
   const breadcrumbSegments = useMemo(() => {
@@ -169,29 +169,177 @@ const TranslationEditor: React.FC = () => {
     dispatch({ type: 'SET_SELECTED_NODE', payload: child });
   };
 
-  const updateEditedValue = (lang: string, value: string) => {
+  const updateEditedValue = (key: string, value: string) => {
     setEditedValues(prev => ({
       ...prev,
-      [lang]: value
+      [key]: value
     }));
   };
 
-  const handleSave = () => {
-    // For now, we'll only save the current file's value
-    // TODO: Implement cross-file saving
-    if (state.selectedNode && state.currentFile) {
-      const currentLang = state.currentFile.lang;
-      const newValue = editedValues[currentLang];
+  // Helper function to flatten translation data into nodes (copied from SetupWizard)
+  const flattenTranslationData = (data: Record<string, any>, prefix = '') => {
+    const nodes: any[] = [];
+    
+    Object.entries(data).forEach(([key, value]) => {
+      const fullKey = prefix ? `${prefix}.${key}` : key;
       
-      if (newValue !== state.selectedNode.value) {
-        dispatch({
-          type: 'UPDATE_NODE_VALUE',
-          payload: {
-            nodeId: state.selectedNode.id,
-            value: newValue,
-          },
+      if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+        // This is a nested object - create parent node and recurse
+        nodes.push({
+          id: fullKey,
+          key: fullKey,
+          value: '',
+          parent: prefix || undefined,
+          children: flattenTranslationData(value, fullKey),
+        });
+      } else {
+        // This is a leaf node
+        nodes.push({
+          id: fullKey,
+          key: fullKey,
+          value: String(value || ''),
+          parent: prefix || undefined,
         });
       }
+    });
+    
+    return nodes;
+  };
+
+  const reloadTranslationFiles = async () => {
+    if (!state.translationFiles.length || !state.projectConfig) return;
+
+    try {
+      dispatch({ type: 'SET_LOADING', payload: true });
+
+      const { folderPath, pattern } = state.projectConfig;
+
+      console.log('🔄 Reloading files from:', folderPath, 'with pattern:', pattern);
+
+      // Load fresh data from disk
+      const foundFiles = await window.electronAPI.loadTranslationFiles(folderPath, pattern);
+      
+      // Convert to TranslationFile format
+      const reloadedFiles = foundFiles
+        .filter(file => !file.error && file.content)
+        .map(foundFile => {
+          const nodes = flattenTranslationData(foundFile.content);
+          return {
+            path: foundFile.path,
+            lang: foundFile.lang,
+            data: foundFile.content,
+            nodes: nodes,
+            relativePath: foundFile.relativePath,
+            error: foundFile.error
+          };
+        });
+
+      // Update the state with reloaded files
+      dispatch({
+        type: 'RELOAD_TRANSLATION_FILES',
+        payload: reloadedFiles
+      });
+
+      console.log('✅ Files reloaded successfully');
+
+    } catch (error) {
+      console.error('❌ Failed to reload translation files:', error);
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  };
+
+  const handleSave = async () => {
+    console.log('🚀 handleSave called');
+    console.log('📝 editedValues:', editedValues);
+    console.log('🌿 isLeafNode:', isLeafNode);
+    
+    const updates: Array<{ nodeKey: string; lang: string; value: string }> = [];
+
+    if (isLeafNode) {
+      console.log('🍃 Processing leaf node');
+      // Save changes for a single leaf node across all languages
+      languageValues.forEach(langValue => {
+        const editedValue = editedValues[langValue.lang];
+        console.log(`  ${langValue.lang}: "${editedValue}" vs "${langValue.value}"`);
+        if (editedValue !== undefined && editedValue !== langValue.value) {
+          updates.push({
+            nodeKey: state.selectedNode!.key,
+            lang: langValue.lang,
+            value: editedValue
+          });
+        }
+      });
+    } else {
+      console.log('📁 Processing parent node with descendants');
+      // Save changes for all leaf descendants across all languages
+      leafDescendants.forEach(item => {
+        item.languageValues.forEach(langValue => {
+          const tableKey = `${item.leaf.key}:${langValue.lang}`;
+          const editedValue = editedValues[tableKey];
+          console.log(`  ${item.leaf.key}[${langValue.lang}]: "${editedValue}" vs "${langValue.value}"`);
+          if (editedValue !== undefined && editedValue !== langValue.value) {
+            updates.push({
+              nodeKey: item.leaf.key,
+              lang: langValue.lang,
+              value: editedValue
+            });
+          }
+        });
+      });
+    }
+
+    console.log('📊 Updates to apply:', updates);
+
+    if (updates.length > 0) {
+      try {
+        // Set loading state
+        dispatch({ type: 'SET_LOADING', payload: true });
+
+        // Update state first
+        dispatch({
+          type: 'UPDATE_MULTIPLE_NODE_VALUES',
+          payload: { updates }
+        });
+
+        // Prepare changes in the format expected by electron API
+        const changes: Array<{ filePath: string; keyPath: string; value: string }> = [];
+        
+        updates.forEach(update => {
+          const file = state.translationFiles.find(f => f.lang === update.lang);
+          console.log(`🔍 File for ${update.lang}:`, file ? `${file.path} (${file.lang})` : 'NOT FOUND');
+          if (file && file.path) {
+            changes.push({
+              filePath: file.path,
+              keyPath: update.nodeKey,
+              value: update.value
+            });
+          }
+        });
+
+        console.log('💾 Changes to save to disk:', changes);
+
+        // Save to disk via electron API
+        if (changes.length > 0) {
+          console.log('📤 Calling electronAPI.saveTranslationFiles...');
+          await window.electronAPI.saveTranslationFiles(changes);
+          console.log('✅ Save completed successfully');
+          
+          // Reload files from disk to ensure UI shows the latest saved state
+          await reloadTranslationFiles();
+          console.log('🔄 Files reloaded after save');
+        } else {
+          console.log('⚠️ No changes to save to disk');
+        }
+
+      } catch (error) {
+        console.error('❌ Failed to save translation files:', error);
+        // TODO: Show error message to user
+      } finally {
+        dispatch({ type: 'SET_LOADING', payload: false });
+      }
+    } else {
+      console.log('ℹ️ No updates detected');
     }
   };
 
@@ -203,21 +351,21 @@ const TranslationEditor: React.FC = () => {
   };
 
   const hasChanges = useMemo(() => {
-    // Check for leaf node changes
-    const leafChanges = languageValues.some(langValue => 
-      editedValues[langValue.lang] !== langValue.value
-    );
-    
-    // Check for children card changes
-    const childChanges = childrenWithValues.some(item =>
-      item.languageValues.some(langValue => {
-        const tableKey = `${item.child.key}:${langValue.lang}`;
-        return editedValues[tableKey] !== langValue.value;
-      })
-    );
-    
-    return leafChanges || childChanges;
-  }, [editedValues, languageValues, childrenWithValues]);
+    if (isLeafNode) {
+      // Check for leaf node changes
+      return languageValues.some(langValue => 
+        editedValues[langValue.lang] !== langValue.value
+      );
+    } else {
+      // Check for leaf descendant changes
+      return leafDescendants.some(item =>
+        item.languageValues.some(langValue => {
+          const tableKey = `${item.leaf.key}:${langValue.lang}`;
+          return editedValues[tableKey] !== langValue.value;
+        })
+      );
+    }
+  }, [editedValues, languageValues, leafDescendants, isLeafNode]);
 
   if (!state.selectedNode) {
     return null;
@@ -240,13 +388,23 @@ const TranslationEditor: React.FC = () => {
             </React.Fragment>
           ))}
         </div>
-        <button
-          onClick={handleSave}
-          disabled={!hasChanges}
-          className="save-button-header"
-        >
-          Save Changes (Ctrl+S)
-        </button>
+        <div className="header-buttons">
+          <button
+            onClick={reloadTranslationFiles}
+            disabled={state.isLoading}
+            className="reload-button-header"
+            title="Reload all files from disk"
+          >
+            🔄 Reload
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={!hasChanges || state.isLoading}
+            className="save-button-header"
+          >
+            Save Changes (Ctrl+S)
+          </button>
+        </div>
       </div>
 
       {/* Content Area */}
@@ -279,33 +437,25 @@ const TranslationEditor: React.FC = () => {
 
         </div>
       ) : (
-        /* Node with Children - Show Cards */
-        <div className="children-cards-container">
-          <div className="children-header">
-            <h4>Children ({state.selectedNode.children?.length || 0})</h4>
-            {(state.selectedNode.children?.length || 0) > 50 && (
-              <span className="showing-count">Showing first 50</span>
-            )}
+        /* Node with Children - Show All Leaf Descendants in Single Column */
+        <div className="leaf-descendants-container">
+          <div className="descendants-header">
+            <h4>Translation Keys ({leafDescendants.length})</h4>
           </div>
           
-          <div className="children-cards">
-            {childrenWithValues.map((item) => (
-              <div key={item.child.id} className="child-card">
-                <div className="card-header">
-                  <button
-                    className="key-button"
-                    onClick={() => handleChildClick(item.child)}
-                    title="Click to navigate to this key"
-                  >
-                    {item.displayName}
-                    {item.child.children && <span className="child-indicator">📁</span>}
-                  </button>
+          <div className="descendants-list">
+            {leafDescendants.map((item) => (
+              <div key={item.leaf.id} className="descendant-card">
+                <div className="descendant-header">
+                  <div className="key-display">
+                    <span className="full-key">{item.fullKey}</span>
+                  </div>
                 </div>
                 
-                <div className="card-languages">
+                <div className="descendant-languages">
                   {item.languageValues.map((langValue) => (
-                    <div key={langValue.lang} className="card-language-editor">
-                      <div className="card-language-header">
+                    <div key={langValue.lang} className="descendant-language-editor">
+                      <div className="descendant-language-header">
                         <span className="language-name">{langValue.lang}</span>
                         {langValue.hasError && (
                           <span className="validation-error">Missing translation</span>
@@ -316,8 +466,8 @@ const TranslationEditor: React.FC = () => {
                       </div>
                       <input
                         type="text"
-                        value={editedValues[`${item.child.key}:${langValue.lang}`] || langValue.value}
-                        onChange={(e) => updateEditedValue(`${item.child.key}:${langValue.lang}`, e.target.value)}
+                        value={editedValues[`${item.leaf.key}:${langValue.lang}`] || langValue.value}
+                        onChange={(e) => updateEditedValue(`${item.leaf.key}:${langValue.lang}`, e.target.value)}
                         onKeyDown={handleKeyDown}
                         placeholder={`Enter ${langValue.lang} translation...`}
                         className={`value-input ${langValue.hasError ? 'has-error' : ''}`}

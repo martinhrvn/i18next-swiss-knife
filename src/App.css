@@ -245,10 +245,15 @@ body {
   align-items: center;
 }
 
-.save-button-header {
+.header-buttons {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.save-button-header,
+.reload-button-header {
   padding: 8px 16px;
-  background-color: var(--accent-color);
-  color: white;
   border: none;
   border-radius: 6px;
   cursor: pointer;
@@ -257,11 +262,34 @@ body {
   transition: background-color 0.2s ease;
 }
 
+.save-button-header {
+  background-color: var(--accent-color);
+  color: white;
+}
+
 .save-button-header:hover:not(:disabled) {
   background-color: var(--accent-hover);
 }
 
 .save-button-header:disabled {
+  background-color: var(--border-color);
+  color: var(--text-secondary);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.reload-button-header {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.reload-button-header:hover:not(:disabled) {
+  background-color: #e9ecef;
+  border-color: var(--accent-color);
+}
+
+.reload-button-header:disabled {
   background-color: var(--border-color);
   color: var(--text-secondary);
   cursor: not-allowed;
@@ -506,6 +534,85 @@ body {
 }
 
 .card-language-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Leaf Descendants Single Column */
+.leaf-descendants-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.descendants-header {
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.descendants-header h4 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.descendants-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.descendant-card {
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 16px;
+  transition: all 0.2s ease;
+}
+
+.descendant-card:hover {
+  border-color: var(--accent-color);
+  box-shadow: 0 2px 8px rgba(0, 122, 204, 0.1);
+}
+
+.descendant-header {
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.key-display {
+  display: flex;
+  align-items: center;
+}
+
+.full-key {
+  font-family: 'Monaco', 'Consolas', monospace;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent-color);
+  background-color: var(--bg-secondary);
+  padding: 6px 10px;
+  border-radius: 4px;
+}
+
+.descendant-languages {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.descendant-language-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.descendant-language-header {
   display: flex;
   align-items: center;
   gap: 8px;

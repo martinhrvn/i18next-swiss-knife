@@ -3,6 +3,11 @@ import { TranslationFile, TranslationNode, SearchFilter } from '../types/transla
 import { AppSettings } from '../types/settings';
 import { saveToLocalStorage, loadFromLocalStorage, clearLocalStorage, StoredState } from '../utils/localStorage';
 
+interface ProjectConfig {
+  folderPath: string;
+  pattern: string;
+}
+
 interface AppState {
   translationFiles: TranslationFile[];
   currentFile: TranslationFile | null;
@@ -11,6 +16,7 @@ interface AppState {
   settings: AppSettings;
   isLoading: boolean;
   isRestoredFromStorage: boolean;
+  projectConfig: ProjectConfig | null;
 }
 
 type AppAction =
@@ -21,9 +27,12 @@ type AppAction =
   | { type: 'UPDATE_SETTINGS'; payload: Partial<AppSettings> }
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'UPDATE_NODE_VALUE'; payload: { nodeId: string; value: string } }
+  | { type: 'UPDATE_MULTIPLE_NODE_VALUES'; payload: { updates: Array<{ nodeKey: string; lang: string; value: string }> } }
+  | { type: 'RELOAD_TRANSLATION_FILES'; payload: TranslationFile[] }
   | { type: 'TOGGLE_NODE_EXPANSION'; payload: string }
   | { type: 'CLEAR_ALL_FILES' }
-  | { type: 'LOAD_STORED_STATE'; payload: StoredState };
+  | { type: 'LOAD_STORED_STATE'; payload: StoredState }
+  | { type: 'SET_PROJECT_CONFIG'; payload: ProjectConfig };
 
 const initialState: AppState = {
   translationFiles: [],
@@ -47,6 +56,7 @@ const initialState: AppState = {
   },
   isLoading: false,
   isRestoredFromStorage: false,
+  projectConfig: null,
 };
 
 function appReducer(state: AppState, action: AppAction): AppState {
@@ -82,6 +92,85 @@ function appReducer(state: AppState, action: AppAction): AppState {
               ),
             }
           : state.currentFile,
+      };
+    case 'UPDATE_MULTIPLE_NODE_VALUES':
+      // Helper function to update a node's value in a tree
+      const updateNodeValueInTree = (nodes: TranslationNode[], targetKey: string, newValue: string): TranslationNode[] => {
+        return nodes.map(node => {
+          if (node.key === targetKey) {
+            return { ...node, value: newValue };
+          }
+          if (node.children) {
+            return { ...node, children: updateNodeValueInTree(node.children, targetKey, newValue) };
+          }
+          return node;
+        });
+      };
+
+      // Update all translation files with the new values
+      const updatedFiles = state.translationFiles.map(file => {
+        let hasUpdates = false;
+        let updatedNodes = file.nodes;
+        let updatedData = { ...file.data };
+
+        // Apply all updates for this file's language
+        action.payload.updates.forEach(update => {
+          if (update.lang === file.lang) {
+            updatedNodes = updateNodeValueInTree(updatedNodes, update.nodeKey, update.value);
+            
+            // Also update the data object for persistence
+            const keys = update.nodeKey.split('.');
+            let current = updatedData;
+            for (let i = 0; i < keys.length - 1; i++) {
+              if (!current[keys[i]]) current[keys[i]] = {};
+              current = current[keys[i]];
+            }
+            current[keys[keys.length - 1]] = update.value;
+            
+            hasUpdates = true;
+          }
+        });
+
+        return hasUpdates ? { ...file, nodes: updatedNodes, data: updatedData } : file;
+      });
+
+      // Update current file if it was modified
+      const updatedCurrentFile = state.currentFile ? 
+        updatedFiles.find(file => file.lang === state.currentFile?.lang) || state.currentFile 
+        : null;
+
+      return {
+        ...state,
+        translationFiles: updatedFiles,
+        currentFile: updatedCurrentFile,
+      };
+    case 'RELOAD_TRANSLATION_FILES':
+      // Find the current file in the reloaded files
+      const reloadedCurrentFile = state.currentFile ? 
+        action.payload.find(file => file.lang === state.currentFile?.lang) || null 
+        : null;
+      
+      // Try to preserve the selected node if it still exists
+      let preservedSelectedNode: TranslationNode | null = null;
+      if (state.selectedNode && reloadedCurrentFile) {
+        const findNodeByKey = (nodes: TranslationNode[], targetKey: string): TranslationNode | null => {
+          for (const node of nodes) {
+            if (node.key === targetKey) return node;
+            if (node.children) {
+              const found = findNodeByKey(node.children, targetKey);
+              if (found) return found;
+            }
+          }
+          return null;
+        };
+        preservedSelectedNode = findNodeByKey(reloadedCurrentFile.nodes, state.selectedNode.key);
+      }
+
+      return {
+        ...state,
+        translationFiles: action.payload,
+        currentFile: reloadedCurrentFile,
+        selectedNode: preservedSelectedNode,
       };
     case 'TOGGLE_NODE_EXPANSION':
       const toggleExpansionInNodes = (nodes: TranslationNode[]): TranslationNode[] => {
@@ -149,7 +238,13 @@ function appReducer(state: AppState, action: AppAction): AppState {
         currentFile,
         selectedNode,
         settings: { ...state.settings, ...storedState.settings },
+        projectConfig: storedState.projectConfig || null,
         isRestoredFromStorage: true
+      };
+    case 'SET_PROJECT_CONFIG':
+      return {
+        ...state,
+        projectConfig: action.payload
       };
     default:
       return state;
@@ -182,7 +277,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         currentFileLanguage: state.currentFile?.lang || null,
         selectedNodeKey: state.selectedNode?.key || null,
         settings: state.settings,
-        lastSavedAt: Date.now()
+        lastSavedAt: Date.now(),
+        projectConfig: state.projectConfig
       };
       
       saveToLocalStorage(stateToSave);
@@ -191,7 +287,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     state.translationFiles,
     state.currentFile?.lang,
     state.selectedNode?.key,
-    state.settings
+    state.settings,
+    state.projectConfig
   ]);
 
   return (

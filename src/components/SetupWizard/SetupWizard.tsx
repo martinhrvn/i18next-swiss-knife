@@ -84,6 +84,9 @@ const SetupWizard: React.FC = () => {
 
       dispatch({ type: 'SET_TRANSLATION_FILES', payload: translationFiles });
       
+      // Store the project config to enable proper reloading
+      dispatch({ type: 'SET_PROJECT_CONFIG', payload: { folderPath, pattern: filePattern } });
+      
       // Set the first file as current, but the MasterFileSelector will handle auto-selection
       if (translationFiles.length > 0) {
         const enFile = translationFiles.find(file => file.lang === 'en' || file.lang === 'english');

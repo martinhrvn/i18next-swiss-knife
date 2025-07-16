@@ -116,6 +116,7 @@ ipcMain.handle('load-translation-files', async (event, folderPath, pattern) => {
 });
 
 ipcMain.handle('save-translation-files', async (event, changes) => {
+  console.log('🎯 Electron: save-translation-files called with:', changes);
   try {
     const results = [];
     
@@ -124,6 +125,7 @@ ipcMain.handle('save-translation-files', async (event, changes) => {
     
     for (const change of changes) {
       const { filePath, keyPath, value } = change;
+      console.log(`📝 Processing change: ${filePath} -> ${keyPath} = "${value}"`);
       
       if (!fileChanges[filePath]) {
         fileChanges[filePath] = [];
@@ -174,7 +176,8 @@ function setValueAtPath(obj, path, value) {
   // Navigate to the parent object
   for (let i = 0; i < keys.length - 1; i++) {
     const key = keys[i];
-    if (!(key in current)) {
+    if (!(key in current) || typeof current[key] !== 'object' || current[key] === null || Array.isArray(current[key])) {
+      // Create new object if key doesn't exist or if the existing value is not a plain object
       current[key] = {};
     }
     current = current[key];

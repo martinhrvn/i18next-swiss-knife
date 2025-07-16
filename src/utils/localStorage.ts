@@ -9,6 +9,10 @@ export interface StoredState {
   selectedNodeKey: string | null;
   settings: AppSettings;
   lastSavedAt: number;
+  projectConfig?: {
+    folderPath: string;
+    pattern: string;
+  } | null;
 }
 
 export const saveToLocalStorage = (state: StoredState): void => {
