@@ -1415,4 +1415,63 @@ document.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => firstInput.focus(), 100);
         }
     }
+    
+    function focusKeyInTree(keyPath) {
+        // Wait for the tree to be fully rendered
+        setTimeout(() => {
+            // Find the tree node for this key path
+            const treeNode = keyTree.querySelector(`[data-key-path="${keyPath}"]`);
+            
+            if (treeNode) {
+                // First, expand all parent nodes to make sure the key is visible
+                expandParentNodes(treeNode);
+                
+                // Select the node
+                const nodeContent = treeNode.querySelector('.tree-node-content');
+                if (nodeContent) {
+                    // Remove previous selection
+                    keyTree.querySelectorAll('.tree-node-content').forEach(c => c.classList.remove('selected'));
+                    
+                    // Add selection to the new node
+                    nodeContent.classList.add('selected');
+                    
+                    // Display the keys for this path in the main view
+                    displayKeysForPath(keyPath);
+                    
+                    // Scroll the node into view
+                    nodeContent.scrollIntoView({ 
+                        behavior: 'smooth', 
+                        block: 'center' 
+                    });
+                }
+            }
+        }, 100);
+    }
+    
+    function expandParentNodes(targetNode) {
+        let currentNode = targetNode;
+        
+        // Walk up the tree and expand all parent nodes
+        while (currentNode) {
+            const parentChildren = currentNode.parentElement;
+            
+            if (parentChildren && parentChildren.classList.contains('tree-children')) {
+                // This is a tree-children container, expand it
+                parentChildren.classList.add('expanded');
+                
+                // Find the corresponding toggle button and mark it as expanded
+                const parentTreeNode = parentChildren.parentElement;
+                if (parentTreeNode && parentTreeNode.classList.contains('tree-node')) {
+                    const toggle = parentTreeNode.querySelector('.tree-toggle');
+                    if (toggle) {
+                        toggle.classList.add('expanded');
+                    }
+                }
+                
+                currentNode = parentTreeNode;
+            } else {
+                break;
+            }
+        }
+    }
 });
