@@ -108,3 +108,78 @@ ipcMain.handle('load-translation-files', async (event, folderPath, pattern) => {
     throw error;
   }
 });
+
+ipcMain.handle('save-translation-files', async (event, changes) => {
+  try {
+    const results = [];
+    
+    // Group changes by file path
+    const fileChanges = {};
+    
+    for (const change of changes) {
+      const { filePath, keyPath, value } = change;
+      
+      if (!fileChanges[filePath]) {
+        fileChanges[filePath] = [];
+      }
+      
+      fileChanges[filePath].push({ keyPath, value });
+    }
+    
+    // Process each file
+    for (const [filePath, keyChanges] of Object.entries(fileChanges)) {
+      try {
+        // Read current file content
+        const currentContent = await fs.readFile(filePath, 'utf8');
+        let jsonData = JSON.parse(currentContent);
+        
+        // Apply changes
+        for (const { keyPath, value } of keyChanges) {
+          if (keyPath === '') {
+            // Special case: replace entire file content
+            jsonData = value;
+          } else {
+            setValueAtPath(jsonData, keyPath, value);
+          }
+        }
+        
+        // Write back to file with proper formatting
+        const updatedContent = JSON.stringify(jsonData, null, 2);
+        await fs.writeFile(filePath, updatedContent, 'utf8');
+        
+        results.push({ filePath, status: 'success' });
+      } catch (error) {
+        console.error(`Error saving file ${filePath}:`, error);
+        results.push({ filePath, status: 'error', error: error.message });
+      }
+    }
+    
+    return results;
+  } catch (error) {
+    console.error('Error saving translation files:', error);
+    throw error;
+  }
+});
+
+function setValueAtPath(obj, path, value) {
+  const keys = path.split('.');
+  let current = obj;
+  
+  // Navigate to the parent object
+  for (let i = 0; i < keys.length - 1; i++) {
+    const key = keys[i];
+    if (!(key in current)) {
+      current[key] = {};
+    }
+    current = current[key];
+  }
+  
+  // Set the final value
+  const finalKey = keys[keys.length - 1];
+  if (value === '' || value === null || value === undefined) {
+    // Remove empty values
+    delete current[finalKey];
+  } else {
+    current[finalKey] = value;
+  }
+}
