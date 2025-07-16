@@ -8,6 +8,11 @@
     "dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && NODE_ENV=development electron .\"",
     "build": "vite build",
     "electron": "electron .",
+    "pack": "npm run build && electron-builder --publish=never",
+    "dist": "npm run build && electron-builder --publish=always",
+    "dist-mac": "npm run build && electron-builder --mac",
+    "dist-win": "npm run build && electron-builder --win",
+    "dist-linux": "npm run build && electron-builder --linux",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
@@ -16,6 +21,7 @@
     "@vitejs/plugin-react": "^4.3.4",
     "concurrently": "^9.2.0",
     "electron": "^37.2.2",
+    "electron-builder": "^26.0.12",
     "vite": "^6.0.5",
     "wait-on": "^8.0.3"
   },
@@ -27,5 +33,50 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "typescript": "^5.8.3"
+  },
+  "build": {
+    "appId": "com.i18n-swiss-knife.app",
+    "productName": "i18n Swiss Knife",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "dist/**/*",
+      "index.js",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        }
+      ]
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": ["x64"]
+        },
+        {
+          "target": "deb",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   }
 }

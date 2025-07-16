@@ -2,3 +2,5 @@ node_modules/
 .idea
 .devenv/
 .claude/
+dist/
+dist-electron/
